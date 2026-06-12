@@ -86,6 +86,33 @@ frontmatter() {
   grep -q '\-\-remediate' "$COMMANDS_DIR/ci-findings.md"
 }
 
+@test "ci-findings: lane flag table covers --sonar --sonar-only --sonar-cloud" {
+  for flag in '--sonar' '--sonar-only' '--sonar-cloud'; do
+    grep -qF -- "$flag" "$COMMANDS_DIR/ci-findings.md" \
+      || { echo "missing lane flag: $flag"; return 1; }
+  done
+}
+
+@test "ci-findings: maps --sonar to --full harness flag" {
+  grep -q '\-\-full' "$COMMANDS_DIR/ci-findings.md"
+}
+
+@test "ci-findings: maps --sonar-only to --lane-b-only harness flag" {
+  grep -q '\-\-lane-b-only' "$COMMANDS_DIR/ci-findings.md"
+}
+
+@test "ci-findings: documents SonarQube container first-boot time" {
+  grep -q '4\.5 min' "$COMMANDS_DIR/ci-findings.md"
+}
+
+@test "ci-findings: documents sequential-not-parallel constraint for fleet+sonar" {
+  grep -q 'sequentially' "$COMMANDS_DIR/ci-findings.md"
+}
+
+@test "ci-findings: report format distinguishes Lane A vs Lane B" {
+  grep -q 'LANE A' "$COMMANDS_DIR/ci-findings.md" && grep -q 'LANE B' "$COMMANDS_DIR/ci-findings.md"
+}
+
 # ── cross-skill ───────────────────────────────────────────────────────────────
 
 @test "all commands: no skill file has empty frontmatter block" {
