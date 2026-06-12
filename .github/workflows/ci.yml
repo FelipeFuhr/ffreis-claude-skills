@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v4
+
+      - name: Install bats and jq
+        run: sudo apt-get install -y --no-install-recommends bats jq
+
+      - name: markdownlint
+        run: |
+          npm install --global markdownlint-cli --silent 2>/dev/null || true
+          make lint
+
+      - name: Structural tests
+        run: make test
+
+  gitleaks:
+    uses: FelipeFuhr/ffreis-workflows-general/.github/workflows/general-gitleaks.yml@7988dacb2ad05f58e732a30071490b18faaef0c8
+    permissions:
+      contents: read
+      security-events: write

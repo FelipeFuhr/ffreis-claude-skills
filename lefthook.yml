@@ -1,0 +1,18 @@
+remotes:
+  - git_url: https://github.com/FelipeFuhr/ffreis-platform-standards
+    ref: 11b850aa1d01905adbb9e2e463691f8333a60096
+    configs:
+      - lefthook/base.yml
+
+pre-commit:
+  parallel: true
+  commands:
+    markdownlint:
+      glob: "commands/*.md"
+      run: markdownlint {staged_files}
+
+pre-push:
+  parallel: false
+  commands:
+    test:
+      run: make test
