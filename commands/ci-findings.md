@@ -1,5 +1,5 @@
 ---
-description: Run the ci-local harness and format all findings — single repo or fleet-wide (active repos, --public, --private, or --all). Supports act-only (default), act+sonar (--sonar), sonar-only (--sonar-only), or SonarCloud (--sonar-cloud). Surfaces SARIF findings + remediation plan; skips CANNOT-RUN and UPLOAD-ONLY-FAILED noise.
+description: Run the ci-local harness and format all findings — single repo or fleet-wide (active repos, --public, --private, or --all). Supports act-only (default), act+sonar (--sonar-local), sonar-only (--sonar-local-only), or SonarCloud (--sonar-cloud). Surfaces SARIF findings + remediation plan; skips CANNOT-RUN and UPLOAD-ONLY-FAILED noise.
 allowed-tools: Bash(make ci-local*), Bash(bash /media/ffreis/second/projects/quality-kit/scripts/check-workspace-state.sh*), Bash(bash /media/ffreis/second/projects/quality-kit/scripts/check-session-state.sh*), Bash(find * -name "*.sarif" -path "*/.ci-local/*"), Bash(ls */.ci-local/), Bash(gh repo view *), Bash(cd *)
 ---
 
@@ -22,8 +22,8 @@ Run the `ffreis-platform-ci-local` harness and report all findings.
 | Flag | Harness args | What runs |
 |---|---|---|
 | *(none)* | `--findings` | Lane A only — act runs all CI jobs, captures SARIF |
-| `--sonar` | `--full` | Lane A + B — act **and** local SonarQube container |
-| `--sonar-only` | `--lane-b-only` | Lane B only — SonarQube container, skips act |
+| `--sonar-local` | `--full` | Lane A + B — act **and** local SonarQube container |
+| `--sonar-local-only` | `--lane-b-only` | Lane B only — SonarQube container, skips act |
 | `--sonar-cloud` | `--lane-b-only --sonar-cloud` | SonarCloud PR analysis instead of local container |
 
 **SonarQube container notes:**
@@ -38,7 +38,7 @@ For **fleet** mode (`--all`, `--public`, `--private`):
 1. Run `bash /media/ffreis/second/projects/quality-kit/scripts/check-workspace-state.sh` to get the active repos list.
 2. If `--public` or `--private`, filter: `gh repo view <owner>/<repo> --json isPrivate --jq '.isPrivate'` per repo (parallel Bash calls).
 3. Run Step 2 for each repo **in parallel using the Workflow tool** (findings go to each repo's own `.ci-local/` — no collision).
-4. **Fleet + `--sonar` / `--sonar-only`**: run repos sequentially, not in parallel — the SonarQube container is shared and can't serve multiple analyses at once.
+4. **Fleet + `--sonar-local` / `--sonar-local-only`**: run repos sequentially, not in parallel — the SonarQube container is shared and can't serve multiple analyses at once.
 
 ## Step 2 — run the harness (per repo)
 

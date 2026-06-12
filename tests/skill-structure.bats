@@ -86,8 +86,8 @@ frontmatter() {
   grep -q '\-\-remediate' "$COMMANDS_DIR/ci-findings.md"
 }
 
-@test "ci-findings: lane flag table covers --sonar --sonar-only --sonar-cloud" {
-  for flag in '--sonar' '--sonar-only' '--sonar-cloud'; do
+@test "ci-findings: lane flag table covers --sonar-local --sonar-local-only --sonar-cloud" {
+  for flag in '--sonar-local' '--sonar-local-only' '--sonar-cloud'; do
     grep -qF -- "$flag" "$COMMANDS_DIR/ci-findings.md" \
       || { echo "missing lane flag: $flag"; return 1; }
   done
