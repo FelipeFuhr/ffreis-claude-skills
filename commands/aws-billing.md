@@ -20,12 +20,13 @@ AWS_PROFILE=ffreis-platform aws dynamodb get-item \
 ```
 
 - **Cache hit** (an `Item` is present and its `generated_at`, `YYYY-MM-DDTHH:MM:SSZ`,
-  is less than 1 hour old): use its `mtd`, `forecast`, and `untagged` fields
-  and the `cost_center_breakdown` field (a JSON string — parse it, an array of
-  `{"name":..., "usd":...}`, already sorted largest-first, untagged excluded)
-  directly for the **Spend** and **By product** sections below. Skip queries
-  A, C, and E entirely — go straight to Step 2 for B and D (not cached, since
-  they aren't shared with any other consumer) and Step 3.
+  is less than 1 hour old): use its `mtd`, `forecast`, `fixed`, and `untagged`
+  fields and the `cost_center_breakdown` field (a JSON string — parse it, an
+  array of `{"name":..., "usd":...}`, already sorted largest-first, fixed and
+  untagged both excluded) directly for the **Spend** and **By product**
+  sections below. Skip queries A, C, and E entirely — go straight to Step 2
+  for B and D (not cached, since they aren't shared with any other consumer)
+  and Step 3.
 - **Cache miss** (row missing, unreadable, or `generated_at` ≥ 1 hour old): run
   A, C, E as a live fetch in Step 2, then write the result back so the *next*
   reader — another `/aws-billing` run, or the `deck` dashboard button — gets a
@@ -39,19 +40,38 @@ AWS_PROFILE=ffreis-platform aws dynamodb get-item \
       "generated_at": {"S": "<now, date -u +%Y-%m-%dT%H:%M:%SZ>"},
       "mtd": {"N": "<A result>"},
       "forecast": {"N": "<A + C results, MTD + remaining forecast — the cache stores the TOTAL, not just the remaining delta>"},
-      "untagged": {"N": "<E'"'"'s untagged group amount>"},
-      "cost_center_breakdown": {"S": "<E'"'"'s named groups as a JSON string, e.g. [{\"name\":\"flemming\",\"usd\":5.68}]>"}
+      "fixed": {"N": "<E'"'"'s fixed-usage-type amount>"},
+      "untagged": {"N": "<E'"'"'s untagged, non-fixed amount>"},
+      "cost_center_breakdown": {"S": "<E'"'"'s named, non-fixed groups as a JSON string, e.g. [{\"name\":\"flemming\",\"usd\":5.68}]>"}
     }'
   ```
 
-  Build `cost_center_breakdown`/`untagged` from E's raw output with `jq`,
-  splitting each `Keys[0]` on its first `$` exactly like `deck`'s Rust parser
-  does (an empty value after `$` is the untagged bucket, tracked separately —
-  never one of the named groups):
+  Build `fixed`/`cost_center_breakdown`/`untagged` from E's raw output with
+  `jq`, matching `deck`'s Rust classifier exactly: a group is **fixed** —
+  regardless of its `CostCenter` tag — when its `USAGE_TYPE` (`Keys[1]`)
+  contains `HostedZone`, `Health-Check`, or `AlarmMonitorUsage` (recurring
+  monthly resource fees: Route 53 hosted zones/health checks, CloudWatch
+  alarm monitoring — never volume-based usage like `GetMetricData` or Cost
+  Explorer's own API calls, which share a service with a fixed line item but
+  aren't themselves fixed). Everything else splits by `Keys[0]` on its first
+  `$`: an empty value after `$` is the untagged bucket, tracked separately —
+  never one of the named groups. Fixed takes priority over tag status — a
+  Route 53 zone billed to a tagged product is still fixed spend, not that
+  product's variable spend, since it doesn't scale with usage:
   ```bash
-  # $E_RAW is E's --output json array of [tagValue, amount] pairs.
-  BREAKDOWN=$(echo "$E_RAW" | jq -c '[.[] | {name: (.[0] | split("$")[1]), usd: (.[1] | tonumber * 100 | round / 100)} | select(.name != "")] | sort_by(-.usd)')
-  UNTAGGED=$(echo "$E_RAW" | jq -r '([.[] | select((.[0] | split("$")[1]) == "") | .[1] | tonumber] | add // 0) * 100 | round / 100')
+  # $E_RAW is E's --output json array of [costCenterKey, usageType, amount] triples.
+  FIXED_PATTERN='HostedZone|Health-Check|AlarmMonitorUsage'
+  FIXED=$(echo "$E_RAW" | jq -r --arg pat "$FIXED_PATTERN" \
+    '([.[] | select(.[1] | test($pat)) | .[2] | tonumber] | add // 0) * 100 | round / 100')
+  BREAKDOWN=$(echo "$E_RAW" | jq -c --arg pat "$FIXED_PATTERN" \
+    '[.[] | select(.[1] | test($pat) | not)]
+     | map({name: (.[0] | split("$")[1]), usd: (.[2] | tonumber)})
+     | group_by(.name)
+     | map({name: .[0].name, usd: ((map(.usd) | add) * 100 | round / 100)})
+     | map(select(.name != ""))
+     | sort_by(-.usd)')
+  UNTAGGED=$(echo "$E_RAW" | jq -r --arg pat "$FIXED_PATTERN" \
+    '([.[] | select((.[1] | test($pat) | not) and ((.[0] | split("$")[1]) == "")) | .[2] | tonumber] | add // 0) * 100 | round / 100')
   ```
   A failed `put-item` (e.g. table unreachable) is not an error — just skip it
   and report normally; the next reader will simply pay for its own live fetch.
@@ -92,15 +112,19 @@ AWS_PROFILE=ffreis-platform aws ce get-cost-and-usage \
   --output json
 ```
 
-**E. MTD by CostCenter tag (per-product)** *(skip on a cache hit)*:
+**E. MTD by CostCenter tag + usage type (per-product, fixed-cost split)** *(skip on a cache hit)*:
 ```bash
 AWS_PROFILE=ffreis-platform aws ce get-cost-and-usage \
   --time-period Start=$(date +%Y-%m-01),End=$(date +%Y-%m-%d) \
   --granularity MONTHLY --metrics UnblendedCost \
-  --group-by Type=TAG,Key=CostCenter \
-  --query 'sort_by(ResultsByTime[0].Groups, &Metrics.UnblendedCost.Amount)[].[Keys[0],Metrics.UnblendedCost.Amount]' \
+  --group-by Type=TAG,Key=CostCenter Type=DIMENSION,Key=USAGE_TYPE \
+  --query 'sort_by(ResultsByTime[0].Groups, &Metrics.UnblendedCost.Amount)[].[Keys[0],Keys[1],Metrics.UnblendedCost.Amount]' \
   --output json
 ```
+The second `--group-by` dimension (`USAGE_TYPE`) is what lets Step 1's cache
+write separate genuinely-fixed spend (Route 53 zones, CloudWatch alarms) from
+tagged product spend, without a fourth Cost Explorer call — CE accepts up to
+two `--group-by` dimensions per request.
 
 ## Step 3 — run usage metric queries in parallel
 
@@ -169,8 +193,9 @@ Present the results as:
 | Month-to-date | $X.XX |
 | Forecast (EOM) | $X.XX |
 | Last month | $X.XX |
+| Fixed (recurring fees) | $X.XX |
 
-**By product (CostCenter tag)**
+**By product (CostCenter tag, fixed-cost rows excluded — see Spend above)**
 | Product | MTD |
 |---|---|
 | petlook | $X.XX |
@@ -199,3 +224,4 @@ Omit rows under $0.01. Sort descending.
 - Any product CostCenter with untagged resources draining into "(untagged)" → tag drift
 - Forecast significantly above last month → note the delta and the top driver service
 - Bedrock invocations > 0 while ai-ask CostCenter spend is near zero → cross-check (invocations may be on a different account/region)
+- Fixed jumped month-over-month → a new recurring-fee resource was likely added (Route 53 zone, CloudWatch alarm); cross-check against the workspace AGENTS.md "Fixed-cost discipline" known-fixed-cost-services table and confirm its `FixedCostTier` tag was set honestly in the PR that added it
