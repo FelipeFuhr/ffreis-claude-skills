@@ -12,8 +12,8 @@ setup() {
   run bash -c '
     AWS_PROFILE=ffreis-platform aws ce get-cost-and-usage \
       --time-period Start=$(date +%Y-%m-01),End=$(date +%Y-%m-%d) \
-      --granularity MONTHLY --metrics BlendedCost \
-      --query "ResultsByTime[0].Total.BlendedCost.Amount" --output text
+      --granularity MONTHLY --metrics UnblendedCost \
+      --query "ResultsByTime[0].Total.UnblendedCost.Amount" --output text
   '
   [ "$status" -eq 0 ]
   [[ "$output" =~ ^[0-9]+\.[0-9]+ ]]
@@ -23,9 +23,9 @@ setup() {
   run bash -c '
     AWS_PROFILE=ffreis-platform aws ce get-cost-and-usage \
       --time-period Start=$(date +%Y-%m-01),End=$(date +%Y-%m-%d) \
-      --granularity MONTHLY --metrics BlendedCost \
+      --granularity MONTHLY --metrics UnblendedCost \
       --group-by Type=DIMENSION,Key=SERVICE \
-      --query "ResultsByTime[0].Groups[].[Keys[0],Metrics.BlendedCost.Amount]" \
+      --query "ResultsByTime[0].Groups[].[Keys[0],Metrics.UnblendedCost.Amount]" \
       --output json
   '
   [ "$status" -eq 0 ]
@@ -36,9 +36,9 @@ setup() {
   run bash -c '
     AWS_PROFILE=ffreis-platform aws ce get-cost-and-usage \
       --time-period Start=$(date +%Y-%m-01),End=$(date +%Y-%m-%d) \
-      --granularity MONTHLY --metrics BlendedCost \
+      --granularity MONTHLY --metrics UnblendedCost \
       --group-by Type=TAG,Key=CostCenter \
-      --query "ResultsByTime[0].Groups[].[Keys[0],Metrics.BlendedCost.Amount]" \
+      --query "ResultsByTime[0].Groups[].[Keys[0],Metrics.UnblendedCost.Amount]" \
       --output json
   '
   [ "$status" -eq 0 ]
@@ -50,9 +50,9 @@ setup() {
   run bash -c '
     AWS_PROFILE=ffreis-platform aws ce get-cost-and-usage \
       --time-period Start=$(date +%Y-%m-01),End=$(date +%Y-%m-%d) \
-      --granularity MONTHLY --metrics BlendedCost \
+      --granularity MONTHLY --metrics UnblendedCost \
       --group-by Type=TAG,Key=CostCenter \
-      --query "ResultsByTime[0].Groups[?Keys[0]=='"'"'CostCenter\$engineering'"'"'].Metrics.BlendedCost.Amount | [0]" \
+      --query "ResultsByTime[0].Groups[?Keys[0]=='"'"'CostCenter\$engineering'"'"'].Metrics.UnblendedCost.Amount | [0]" \
       --output text
   '
   [ "$status" -eq 0 ]
