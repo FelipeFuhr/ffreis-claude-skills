@@ -32,34 +32,54 @@ setup() {
   echo "$output" | python3 -c "import sys,json; d=json.load(sys.stdin); assert isinstance(d, list)"
 }
 
-@test "by-CostCenter: returns JSON and includes at least one tagged row" {
+@test "by-CostCenter+usage-type: returns JSON and includes at least one tagged row" {
   run bash -c '
     AWS_PROFILE=ffreis-platform aws ce get-cost-and-usage \
       --time-period Start=$(date +%Y-%m-01),End=$(date +%Y-%m-%d) \
       --granularity MONTHLY --metrics UnblendedCost \
-      --group-by Type=TAG,Key=CostCenter \
-      --query "ResultsByTime[0].Groups[].[Keys[0],Metrics.UnblendedCost.Amount]" \
+      --group-by Type=TAG,Key=CostCenter Type=DIMENSION,Key=USAGE_TYPE \
+      --query "ResultsByTime[0].Groups[].[Keys[0],Keys[1],Metrics.UnblendedCost.Amount]" \
       --output json
   '
   [ "$status" -eq 0 ]
-  # At least one row should exist (even if only untagged)
-  echo "$output" | python3 -c "import sys,json; d=json.load(sys.stdin); assert len(d) >= 1"
+  # At least one row should exist (even if only untagged), each a 3-element
+  # [CostCenter, usage type, amount] triple — the shape Step 1's cache write
+  # classifies into fixed/tagged/untagged.
+  echo "$output" | python3 -c "import sys,json; d=json.load(sys.stdin); assert len(d) >= 1; assert all(len(row) == 3 for row in d)"
 }
 
-@test "by-CostCenter: engineering CostCenter has near-zero spend (tag drift guard)" {
+@test "by-CostCenter+usage-type: engineering CostCenter has near-zero spend (tag drift guard)" {
   run bash -c '
     AWS_PROFILE=ffreis-platform aws ce get-cost-and-usage \
       --time-period Start=$(date +%Y-%m-01),End=$(date +%Y-%m-%d) \
       --granularity MONTHLY --metrics UnblendedCost \
-      --group-by Type=TAG,Key=CostCenter \
-      --query "ResultsByTime[0].Groups[?Keys[0]=='"'"'CostCenter\$engineering'"'"'].Metrics.UnblendedCost.Amount | [0]" \
-      --output text
+      --group-by Type=TAG,Key=CostCenter Type=DIMENSION,Key=USAGE_TYPE \
+      --query "ResultsByTime[0].Groups[?Keys[0]=='"'"'CostCenter\$engineering'"'"'].Metrics.UnblendedCost.Amount" \
+      --output json \
+    | jq "[.[] | tonumber] | add // 0"
   '
   [ "$status" -eq 0 ]
-  # engineering CostCenter should be absent or < $0.10 — it should not accumulate real spend
-  if [ "$output" != "None" ] && [ -n "$output" ]; then
-    python3 -c "import sys; v=float('$output'); assert v < 0.10, f'engineering CostCenter spend too high: \${v:.4f}'"
-  fi
+  # engineering CostCenter should sum to near-zero across all its usage-type
+  # rows (the compound group-by can now split one CostCenter across several
+  # rows) — it should not accumulate real spend.
+  python3 -c "v=float('$output'); assert v < 0.10, f'engineering CostCenter spend too high: \${v:.4f}'"
+}
+
+@test "by-CostCenter+usage-type: fixed-usage-type classifier matches known recurring-fee patterns" {
+  # No live AWS call — this is a pure jq unit check that the skill's
+  # documented FIXED_PATTERN (mirroring deck's Rust is_fixed_usage_type)
+  # correctly separates fixed rows from ordinary usage-based ones.
+  run bash -c '
+    FIXED_PATTERN="HostedZone|Health-Check|AlarmMonitorUsage"
+    echo "[
+      [\"CostCenter\$flemming\", \"USE1-HostedZone\", \"0.5\"],
+      [\"CostCenter\$flemming\", \"Requests-Tier1\", \"5.18\"],
+      [\"CostCenter\$\", \"CW:AlarmMonitorUsage\", \"3.21\"],
+      [\"CostCenter\$\", \"USE1-APIRequest\", \"1.25\"]
+    ]" | jq -r --arg pat "$FIXED_PATTERN" "[.[] | select(.[1] | test(\$pat)) | .[2] | tonumber] | add"
+  '
+  [ "$status" -eq 0 ]
+  [ "$output" = "3.71" ]
 }
 
 @test "Lambda invocations: CloudWatch returns a number or N/A" {
