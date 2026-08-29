@@ -25,7 +25,7 @@ jobs:
 
       - name: markdownlint
         run: |
-          npm install --global markdownlint-cli --silent 2>/dev/null || true
+          npm install --global markdownlint-cli --silent
           make lint
 
       - name: Structural tests

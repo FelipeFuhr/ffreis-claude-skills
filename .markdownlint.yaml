@@ -1,0 +1,30 @@
+# markdownlint config for ffreis-claude-skills.
+#
+# Added 2026-08-29: `make lint`'s `npm install --global markdownlint-cli --silent
+# 2>/dev/null || true` has been silently no-op'ing since this repo was created — any
+# install failure (network, registry hiccup) falls through the `|| true` and `make lint`
+# then finds no `markdownlint` binary and prints a warning instead of failing. The
+# install happened to succeed for the first time while adding /consistency-judge,
+# immediately surfacing ~110 pre-existing violations across all three skill files
+# against markdownlint's strict defaults (80-col line length, aligned/compact table
+# pipe style, frontmatter-vs-H1, unlabeled fenced examples). None of those are real
+# defects — same reasoning as ffreis-opendeck-config's .markdownlint.yaml:
+default: true
+
+# These commands are frontmatter + prose interleaved with reference tables and
+# report-format mockups. 80 columns is unworkable for either; tables and code/example
+# fences cannot be wrapped without changing what they render as or mean.
+MD013:
+  line_length: 120
+  tables: false
+  code_blocks: false
+  headings: true
+
+# Every skill file opens with YAML frontmatter (description/allowed-tools), not a
+# top-level heading — that's the established, intentional format for this repo.
+MD041: false
+
+# Hand-written tables prioritize readability over markdownlint's "compact" or
+# "aligned" pipe-spacing preference; enforcing one would mean reformatting every
+# table pass instead of when its content actually changes.
+MD060: false

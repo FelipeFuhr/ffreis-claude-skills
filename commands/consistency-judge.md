@@ -20,7 +20,7 @@ target promised.
 ## Step 1 — identify source and target from $ARGUMENTS
 
 | Reference | Accepted forms |
-|---|---|
+| --- | --- |
 | **Source** (ground truth) | a doc file/dir path, a glob, one or more code paths that implement the feature, a git ref (`<repo>@<sha>:<path>`), a URL (fetched via WebFetch) |
 | **Target** (artifact under check) | a doc file/dir path, a rendered page URL (fetched via WebFetch), a set of files |
 
@@ -60,7 +60,7 @@ in one of four buckets (silence is only ever a discrepancy in one of these
 buckets — most claims should simply be covered):
 
 | Kind | Meaning |
-|---|---|
+| --- | --- |
 | `missing` | The source does something real that the target is silent on, and the target's role would reasonably be expected to disclose it (a privacy page silent on a live data-collection mechanism; a pricing page silent on a real fee). Use judgment for what "reasonably expected" means for this pair — a roadmap vs. a marketing page usually shouldn't restate every internal implementation detail; say so in the rationale when you deliberately don't flag something for this reason. |
 | `overstated` | The target claims something the source does not support — a feature, guarantee, or scope that doesn't exist in the implementation. |
 | `conflicting` | Both sides address the same point but disagree (different numbers, different scope, contradictory statements). |
@@ -71,7 +71,7 @@ buckets — most claims should simply be covered):
 before a number; the same discipline applies here before a status):
 
 | Field | Mirrors `Verdict` | Content |
-|---|---|---|
+| --- | --- | --- |
 | `rationale` | `rationale` | 2-4 sentences walking the specific comparisons that drove the call — name concrete claims/facts, not a vibe. |
 | `status` | `score` (categorical here, not `[0,1]`) | One of `in-sync`, `partial`, `out-of-sync`. |
 | `severity` | *(new — a doc-consistency finding can carry legal/compliance weight a game-concept score never did)* | `none`\|`low`\|`medium`\|`high`\|`critical`, overall = the max across `discrepancies[]`. |
@@ -79,6 +79,7 @@ before a number; the same discipline applies here before a status):
 | `discrepancies[]` | *(new — a doc diff is inherently multi-item; the judge's per-lens comment was deliberately singular, this isn't)* | See below. |
 
 Each `discrepancies[]` entry:
+
 - `kind` — one of the four buckets above
 - `severity` — `none`\|`low`\|`medium`\|`high`\|`critical` for this item alone
 - `target_claim` — verbatim quote + file:line/section, or `(absent)` for `missing`
@@ -123,7 +124,7 @@ separate task the human must explicitly request.
 
 ### Example 1 — the motivating case: legal pages vs. implemented data practices
 
-```
+```text
 /consistency-judge source=ffreis-website+ffreis-urbs (code) target=ffreis-website-data/data/en/site.d/60-pages.yaml (privacy/cookies/terms)
 ```
 
@@ -147,7 +148,7 @@ rather than guessing.
 
 ### Example 2 — a doc claim vs. actual fleet wiring
 
-```
+```text
 /consistency-judge source=quality-kit/scripts/pr-ready.sh + the repos it targets target=AGENTS.md's "Draft-first PRs & GitHub Actions CI" section
 ```
 
@@ -162,7 +163,7 @@ trusts a green promotion that never actually ran.
 
 ### Example 3 — a business-model doc vs. entitlement code
 
-```
+```text
 /consistency-judge source=<checkout/entitlement Lambda + section-gate registry code> target=<course page copy in ffreis-website-data, e.g. "lifetime access", "N modules">
 ```
 
