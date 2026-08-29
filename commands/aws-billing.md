@@ -58,6 +58,7 @@ AWS_PROFILE=ffreis-platform aws dynamodb get-item \
   never one of the named groups. Fixed takes priority over tag status — a
   Route 53 zone billed to a tagged product is still fixed spend, not that
   product's variable spend, since it doesn't scale with usage:
+
   ```bash
   # $E_RAW is E's --output json array of [costCenterKey, usageType, amount] triples.
   FIXED_PATTERN='HostedZone|Health-Check|AlarmMonitorUsage'
@@ -73,12 +74,14 @@ AWS_PROFILE=ffreis-platform aws dynamodb get-item \
   UNTAGGED=$(echo "$E_RAW" | jq -r --arg pat "$FIXED_PATTERN" \
     '([.[] | select((.[1] | test($pat) | not) and ((.[0] | split("$")[1]) == "")) | .[2] | tonumber] | add // 0) * 100 | round / 100')
   ```
+
   A failed `put-item` (e.g. table unreachable) is not an error — just skip it
   and report normally; the next reader will simply pay for its own live fetch.
 
 ## Step 2 — cost queries (only the ones the cache didn't cover)
 
 **A. Account-wide MTD** *(skip on a cache hit)*:
+
 ```bash
 AWS_PROFILE=ffreis-platform aws ce get-cost-and-usage \
   --time-period Start=$(date +%Y-%m-01),End=$(date +%Y-%m-%d) \
@@ -87,6 +90,7 @@ AWS_PROFILE=ffreis-platform aws ce get-cost-and-usage \
 ```
 
 **B. Last month total** *(always run — not part of the shared cache)*:
+
 ```bash
 AWS_PROFILE=ffreis-platform aws ce get-cost-and-usage \
   --time-period Start=$(date -d "$(date +%Y-%m-01) -1 month" +%Y-%m-01),End=$(date +%Y-%m-01) \
@@ -95,6 +99,7 @@ AWS_PROFILE=ffreis-platform aws ce get-cost-and-usage \
 ```
 
 **C. MTD forecast** *(skip on a cache hit; skip gracefully if today is month-end)*:
+
 ```bash
 AWS_PROFILE=ffreis-platform aws ce get-cost-forecast \
   --time-period Start=$(date +%Y-%m-%d),End=$(date -d "$(date +%Y-%m-01) +1 month" +%Y-%m-%d) \
@@ -103,6 +108,7 @@ AWS_PROFILE=ffreis-platform aws ce get-cost-forecast \
 ```
 
 **D. MTD by service (top 12)** *(always run — not part of the shared cache)*:
+
 ```bash
 AWS_PROFILE=ffreis-platform aws ce get-cost-and-usage \
   --time-period Start=$(date +%Y-%m-01),End=$(date +%Y-%m-%d) \
@@ -113,6 +119,7 @@ AWS_PROFILE=ffreis-platform aws ce get-cost-and-usage \
 ```
 
 **E. MTD by CostCenter tag + usage type (per-product, fixed-cost split)** *(skip on a cache hit)*:
+
 ```bash
 AWS_PROFILE=ffreis-platform aws ce get-cost-and-usage \
   --time-period Start=$(date +%Y-%m-01),End=$(date +%Y-%m-%d) \
@@ -121,6 +128,7 @@ AWS_PROFILE=ffreis-platform aws ce get-cost-and-usage \
   --query 'sort_by(ResultsByTime[0].Groups, &Metrics.UnblendedCost.Amount)[].[Keys[0],Keys[1],Metrics.UnblendedCost.Amount]' \
   --output json
 ```
+
 The second `--group-by` dimension (`USAGE_TYPE`) is what lets Step 1's cache
 write separate genuinely-fixed spend (Route 53 zones, CloudWatch alarms) from
 tagged product spend, without a fourth Cost Explorer call — CE accepts up to
@@ -128,9 +136,12 @@ two `--group-by` dimensions per request.
 
 ## Step 3 — run usage metric queries in parallel
 
-Time window: start of current month to now. Use period=2592000 (30 days) to get a single data point. These are free-tier CloudWatch metric calls, not Cost Explorer — nothing here is cached or needs to be.
+Time window: start of current month to now. Use period=2592000 (30 days) to get
+a single data point. These are free-tier CloudWatch metric calls, not Cost
+Explorer — nothing here is cached or needs to be.
 
 **F. Bedrock invocations (model inference calls):**
+
 ```bash
 AWS_PROFILE=ffreis-platform aws cloudwatch get-metric-statistics \
   --namespace AWS/Bedrock \
@@ -142,6 +153,7 @@ AWS_PROFILE=ffreis-platform aws cloudwatch get-metric-statistics \
 ```
 
 **G. Lambda invocations (fleet total):**
+
 ```bash
 AWS_PROFILE=ffreis-platform aws cloudwatch get-metric-statistics \
   --namespace AWS/Lambda \
@@ -154,6 +166,7 @@ AWS_PROFILE=ffreis-platform aws cloudwatch get-metric-statistics \
 
 **H. CloudFront requests (fleet total):**
 CloudFront metrics are only published to `us-east-1`.
+
 ```bash
 AWS_PROFILE=ffreis-platform aws cloudwatch get-metric-statistics \
   --region us-east-1 \
@@ -167,6 +180,7 @@ AWS_PROFILE=ffreis-platform aws cloudwatch get-metric-statistics \
 ```
 
 **I. API Gateway requests (fleet total):**
+
 ```bash
 AWS_PROFILE=ffreis-platform aws cloudwatch get-metric-statistics \
   --namespace AWS/ApiGateway \
@@ -187,17 +201,19 @@ Present the results as:
 
 **AWS Dashboard — [Month Year] ([N] days in)**
 
-**Spend**
+### Spend
+
 | | Amount |
-|---|---|
+| --- | --- |
 | Month-to-date | $X.XX |
 | Forecast (EOM) | $X.XX |
 | Last month | $X.XX |
 | Fixed (recurring fees) | $X.XX |
 
-**By product (CostCenter tag, fixed-cost rows excluded — see Spend above)**
+### By product (CostCenter tag, fixed-cost rows excluded — see Spend above)
+
 | Product | MTD |
-|---|---|
+| --- | --- |
 | petlook | $X.XX |
 | flemming | $X.XX |
 | ffreis-website | $X.XX |
@@ -209,9 +225,10 @@ Present the results as:
 **Top services**
 Omit rows under $0.01. Sort descending.
 
-**Usage**
+### Usage
+
 | Metric | MTD |
-|---|---|
+| --- | --- |
 | Bedrock invocations | N |
 | Lambda invocations | N |
 | CloudFront requests | N |
@@ -220,8 +237,15 @@ Omit rows under $0.01. Sort descending.
 ---
 
 **Flags to call out:**
-- Cost Explorer charges > $1 → may indicate the shared cache isn't being hit (check whether Step 1 actually found a fresh row) or a consumer elsewhere is bypassing it
+
+- Cost Explorer charges > $1 → may indicate the shared cache isn't being hit
+  (check whether Step 1 actually found a fresh row) or a consumer elsewhere is
+  bypassing it
 - Any product CostCenter with untagged resources draining into "(untagged)" → tag drift
 - Forecast significantly above last month → note the delta and the top driver service
-- Bedrock invocations > 0 while ai-ask CostCenter spend is near zero → cross-check (invocations may be on a different account/region)
-- Fixed jumped month-over-month → a new recurring-fee resource was likely added (Route 53 zone, CloudWatch alarm); cross-check against the workspace AGENTS.md "Fixed-cost discipline" known-fixed-cost-services table and confirm its `FixedCostTier` tag was set honestly in the PR that added it
+- Bedrock invocations > 0 while ai-ask CostCenter spend is near zero →
+  cross-check (invocations may be on a different account/region)
+- Fixed jumped month-over-month → a new recurring-fee resource was likely
+  added (Route 53 zone, CloudWatch alarm); cross-check against the workspace
+  AGENTS.md "Fixed-cost discipline" known-fixed-cost-services table and
+  confirm its `FixedCostTier` tag was set honestly in the PR that added it

@@ -35,6 +35,7 @@ at a pinned SHA via `make sync-skills` in `ffreis-claude-config`.
 |---|---|
 | `/aws-billing` | AWS billing dashboard — MTD spend, per-product CostCenter breakdown, forecast, usage metrics |
 | `/ci-findings` | Run the ci-local harness and format findings — single repo or fleet-wide |
+| `/consistency-judge` | LLM-as-judge: check whether a target artifact (doc/page/code) is in sync with a source of truth (spec/roadmap/code) — advisory, read-only |
 
 ## Structure
 
