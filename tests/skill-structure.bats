@@ -176,6 +176,71 @@ frontmatter() {
   grep -q 'claude_judge.py' "$COMMANDS_DIR/consistency-judge.md"
 }
 
+# ── onboard ───────────────────────────────────────────────────────────────────
+
+@test "onboard: file exists" {
+  [ -f "$COMMANDS_DIR/onboard.md" ]
+}
+
+@test "onboard: has non-empty description in frontmatter" {
+  desc=$(frontmatter "$COMMANDS_DIR/onboard.md" | grep '^description:' | cut -d: -f2-)
+  [ -n "$(echo "$desc" | tr -d '[:space:]')" ]
+}
+
+@test "onboard: has non-empty allowed-tools in frontmatter" {
+  tools=$(frontmatter "$COMMANDS_DIR/onboard.md" | grep '^allowed-tools:' | cut -d: -f2-)
+  [ -n "$(echo "$tools" | tr -d '[:space:]')" ]
+}
+
+@test "onboard: allowed-tools contains the ws workspace CLI" {
+  frontmatter "$COMMANDS_DIR/onboard.md" | grep -q 'ws-workspace-manager\|ffreis-workspace-manager ws'
+}
+
+@test "onboard: allowed-tools contains audit-repo-standards" {
+  frontmatter "$COMMANDS_DIR/onboard.md" | grep -q 'audit-repo-standards'
+}
+
+# The three verification failure modes are the reason this skill exists;
+# each maps to a real onboarding defect. Losing one silently regresses the skill.
+
+@test "onboard: keeps the audit-against-origin rule" {
+  grep -qi 'never a local checkout' "$COMMANDS_DIR/onboard.md"
+  grep -q 'git show origin/main:' "$COMMANDS_DIR/onboard.md"
+}
+
+@test "onboard: keeps the verify-a-claimed-gap-before-documenting-it rule" {
+  grep -q 'KNOWN GAP' "$COMMANDS_DIR/onboard.md"
+  grep -qi 'clean_urls' "$COMMANDS_DIR/onboard.md"
+}
+
+@test "onboard: keeps the no-unbacked-quality-floor rule" {
+  grep -qi 'floor you have no tests to meet' "$COMMANDS_DIR/onboard.md"
+  grep -q 'check-coverage' "$COMMANDS_DIR/onboard.md"
+}
+
+@test "onboard: sonar properties are a backfill, not a decision" {
+  grep -q 'sonar-project.properties' "$COMMANDS_DIR/onboard.md"
+  grep -qi 'backfill, not a decision' "$COMMANDS_DIR/onboard.md"
+  grep -qi 'level up, never down' "$COMMANDS_DIR/onboard.md"
+}
+
+@test "onboard: a fleet gap is reported, never propagated" {
+  grep -qi 'finding to report, not a' "$COMMANDS_DIR/onboard.md"
+}
+
+@test "onboard: requires ready_for_review on pull_request triggers" {
+  grep -q 'ready_for_review' "$COMMANDS_DIR/onboard.md"
+}
+
+@test "onboard: requires parity reported in both directions" {
+  grep -qi 'BOTH directions\|where it is ahead' "$COMMANDS_DIR/onboard.md"
+}
+
+@test "onboard: body has at least 7 numbered steps" {
+  count=$(grep -c '^## Step ' "$COMMANDS_DIR/onboard.md")
+  [ "$count" -ge 7 ]
+}
+
 # ── cross-skill ───────────────────────────────────────────────────────────────
 
 @test "all commands: no skill file has empty frontmatter block" {
