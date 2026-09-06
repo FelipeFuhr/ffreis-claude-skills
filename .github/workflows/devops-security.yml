@@ -121,7 +121,13 @@ jobs:
       contents: read
       actions: read
       security-events: write
-    uses: FelipeFuhr/ffreis-workflows-general/.github/workflows/general-osv-scanner.yml@82097e621b8f630f2be2f759025529f7f5442796 # v1.9.0
+    # Pinned ahead of the other scanners in this file (still v1.9.0) on purpose:
+    # this repo carries NO dependency manifest (skills are markdown + bats), and
+    # osv-scanner exits 128 -- "no supported package source" -- which v1.9.0
+    # treats as a hard failure. v1.9.3 handles 128 explicitly as an inapplicable
+    # scan. Without this the job fails on every branch AND on main's nightly
+    # schedule, as it had since at least 2026-08-29.
+    uses: FelipeFuhr/ffreis-workflows-general/.github/workflows/general-osv-scanner.yml@8159bd0c0a5acfa82c827072082a585e3fe11b54 # v1.9.3
     with:
       working-directory: "."
       upload-sarif: false
