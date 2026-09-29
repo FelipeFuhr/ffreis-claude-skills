@@ -1,5 +1,16 @@
 # ffreis-claude-skills
 
+**ARCHIVED 2026-09-29 — retired, do not edit.** The "canonical copy, synced by
+pinned SHA" model described below was never actually wired: `ffreis-claude-config`'s
+`make sync-skills`/`make check-skills-drift` were `.PHONY` targets with no
+recipe, so nothing ever synced and nothing ever gated drift. This repo was the
+only place three of its four skills ever lived correctly at any given time —
+`consistency-judge.md` and `onboard.md` never loaded anywhere, because the
+actual harness only reads `ffreis-claude-config`'s `commands/`. All four
+skills (including these two, previously dead) now live there as the sole
+canonical copy: <https://github.com/ffreis-org/ffreis-claude-config/tree/main/commands>.
+See `ffreis-claude-config` PR #60 for the retirement.
+
 <!-- ffreis-badges:start -->
 [![CI](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/FelipeFuhr/ffreis-badges/main/badges/ffreis-claude-skills/ci.json)](https://github.com/FelipeFuhr/ffreis-claude-skills/actions) [![License](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/FelipeFuhr/ffreis-badges/main/badges/ffreis-claude-skills/license.json)](https://github.com/FelipeFuhr/ffreis-claude-skills/blob/main/LICENSE)
 <!-- ffreis-badges:end -->
